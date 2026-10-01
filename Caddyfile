@@ -1,0 +1,34 @@
+{
+    on_demand_tls {
+        ask http://localhost:9123/check
+    }
+}
+
+*.shitpost.ing {
+    tls {
+        on_demand
+    }
+    root * /srv/wwo2026/{labels.2}
+    @git path /.git /.git/*
+    respond @git 404
+    file_server
+}
+
+shitpost.ing {
+    root * /srv/wwo2026/_root
+    file_server
+}
+
+http://localhost:9123 {
+    root * /srv/wwo2026
+    map {query.domain} {sub} {
+        ~^([a-z0-9-]+)\.shitpost\.ing$ "${1}"
+        default ""
+    }
+    @exists {
+        not vars {sub} ""
+        file /{sub}/
+    }
+    respond @exists 200
+    respond 404
+}
