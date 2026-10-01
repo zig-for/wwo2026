@@ -4,6 +4,10 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import Stats from 'three/addons/libs/stats.module.js';
+
+const stats = new Stats();
+//document.body.appendChild(stats.dom);
 // Create an empty scene
 var scene = new THREE.Scene();
 
@@ -20,7 +24,11 @@ renderer.setPixelRatio(window.devicePixelRatio);
 // Configure renderer clear color
 renderer.setClearColor("#000000");
 const controls = new OrbitControls(camera, renderer.domElement);
-
+controls.mouseButtons = {
+  LEFT: null,
+  MIDDLE: THREE.MOUSE.DOLLY,
+  RIGHT: THREE.MOUSE.ROTATE,
+};
 // Configure renderer size
 renderer.setSize( window.innerWidth, window.innerHeight );
 
@@ -30,33 +38,69 @@ document.body.appendChild( renderer.domElement );
 var tl = new THREE.TextureLoader();
 
 async function main() {
-
-const [wood, scratchTex] = await Promise.all([
+// load
+const [wood, scratchTex, fluffyTex, massageTex] = await Promise.all([
   tl.loadAsync("wood.jpg"),
   tl.loadAsync("scratch.png"),
+tl.loadAsync('fluffy.jpg'),
+tl.loadAsync('massage2.jpg'),
 ]);
+fluffyTex.colorSpace = THREE.SRGBColorSpace;
 wood.colorSpace = THREE.SRGBColorSpace;
-	scratchTex.colorSpace = THREE.SRGBColorSpace;
-	var ticketCanvas = document.createElement('canvas');
-ticketCanvas.width = 800;
-ticketCanvas.height = 2200;
-document.body.appendChild(ticketCanvas)
-// Create a Cube Mesh with basic material
-var deskGeometry = new THREE.BoxGeometry( 30, 20, 1 );
+scratchTex.colorSpace = THREE.SRGBColorSpace;
+massageTex.colorSpace = THREE.SRGBColorSpace;
+const video = document.createElement('video');
+video.src = 'ww.mp4';
+video.loop = true;
+video.muted = false;
+video.volume = 0.0;
+video.playsInline = true;
+window.addEventListener('pointerdown', () => video.play(), { once: true });
+
+
+// desk
+	var deskGeometry = new THREE.BoxGeometry( 30, 20, 1 );
 var deskMaterial = new THREE.MeshBasicMaterial({map:wood});
 var desk = new THREE.Mesh( deskGeometry, deskMaterial );
 
+desk.position.z = -0.5;
+scene.add( desk );
+
+// ticket
+var ticketCanvas = document.createElement('canvas');
+ticketCanvas.width = 800;
+ticketCanvas.height = 2200;
 
 var ticketGeometry = new THREE.BoxGeometry( 4, 11, 0.001 );
 var scratchCanvasTexture = new THREE.CanvasTexture(ticketCanvas);
 scratchCanvasTexture.colorSpace = THREE.SRGBColorSpace;
-	var scratchMaterial = new THREE.MeshBasicMaterial({map:scratchCanvasTexture});
-//var scratchMaterial = new THREE.MeshBasicMaterial({map:scratchTex});
-var ticket = new THREE.Mesh( ticketGeometry, scratchMaterial );
-desk.position.z = -0.5;
+var scratchMaterial = new THREE.MeshBasicMaterial({map:scratchCanvasTexture, transparent: true});
 
-scene.add( desk );
-scene.add( ticket );
+
+var videoTexture = new THREE.VideoTexture(video);
+	videoTexture.colorSpace = THREE.SRGBColorSpace;
+
+var videoGeometry = new THREE.BoxGeometry(4, 4, 0.001);
+
+var videoTicket = new THREE.Mesh(videoGeometry, new THREE.MeshBasicMaterial({map: videoTexture}))
+videoTicket.position.y = -3.5;
+scene.add(videoTicket);
+
+var fluffyGeometry = new THREE.BoxGeometry(4, 4*(760/800), 0.001); 
+var fluffy = new THREE.Mesh(fluffyGeometry, new THREE.MeshBasicMaterial({map: fluffyTex}))
+fluffy.position.y = (11 - 4*(760/800))/2;
+	scene.add(fluffy);
+
+var massageGeometry = new THREE.BoxGeometry(4, 3.2, 0.001);
+	var massage = new THREE.Mesh(massageGeometry, new THREE.MeshBasicMaterial({map: massageTex}));
+	massage.position.y = 0.1;
+	scene.add(massage);
+
+var ticket = new THREE.Mesh( ticketGeometry, scratchMaterial );
+ticket.position.z = 0.001;
+	scene.add( ticket );
+
+
 
 
 // setup particles
@@ -78,7 +122,8 @@ const glitterMaterial = new THREE.MeshBasicMaterial({
 
 	const maxGlitter = 10000;
 var glitterInstancedMesh = new THREE.InstancedMesh(glitterGeom, glitterMaterial, maxGlitter);
-		const dummy = new THREE.Object3D();
+glitterInstancedMesh.fustrumCulled = false;
+const dummy = new THREE.Object3D();
 
 
 var glitterIdx = 0;
@@ -91,11 +136,24 @@ var ctx = ticketCanvas.getContext('2d');
 ctx.drawImage(scratchTex.image, 0, 0);
 scratchCanvasTexture.needsUpdate = true;
 
+
+function scratchedPercent(ctx) {
+  const { width, height } = ctx.canvas;
+  const rows = 800;
+  const { data } = ctx.getImageData(0, height - rows, width, rows);
+
+  let clear = 0;
+  for (let i = 3; i < data.length; i += 4) {
+    if (data[i] === 0) clear++;
+  }
+  return (clear / (width * rows));
+}
+
 	const raycaster = new THREE.Raycaster();
 
 renderer.domElement.addEventListener('pointermove', (e) => {
   // e.clientX, e.clientY are the pointer position in the viewport
-
+if (!(e.buttons & 1)) return;
 
 
 const rect = renderer.domElement.getBoundingClientRect();
@@ -118,16 +176,31 @@ if(hits.length) {
 		glitterInstancedMesh.instanceMatrix.needsUpdate = true;
 
 const a = Math.random() * Math.PI * 2;
-const x = Math.cos(a), y = Math.sin(a);
+const vx = Math.cos(a), vy = Math.sin(a);
 
-const xyVel = 0.5;
+const xyVel = 5;
 
-		glitterVelocity[glitterIdx * 3 + 0] = x * xyVel;
-		glitterVelocity[glitterIdx * 3 + 1] = y * xyVel;
+		glitterVelocity[glitterIdx * 3 + 0] = vx * xyVel;
+		glitterVelocity[glitterIdx * 3 + 1] = vy * xyVel;
 		glitterVelocity[glitterIdx * 3 + 2] = 2.0;
 
 		glitterIdx++;
 		glitterIdx %= maxGlitter;
+
+const uv = hits[0].uv;
+const x = uv.x * 800;
+const y = (1 - uv.y) * 2200;
+
+		ctx.globalCompositeOperation = 'destination-out';
+ctx.beginPath();
+		const delSize = 10;
+ctx.arc(x, y, delSize, 0, Math.PI * 2);
+ctx.fill();
+ctx.globalCompositeOperation = 'source-over';
+scratchCanvasTexture.needsUpdate = true;
+
+video.volume = Math.max(scratchedPercent(ctx) - 0.2, 0.0);
+
 	}
 }
 
@@ -155,22 +228,18 @@ glitterVelocity[i * 3 + 2] += gravAccel * frac;
 dummy.position.x += frac*glitterVelocity[i * 3 + 0];
 dummy.position.y += frac*glitterVelocity[i * 3 + 1];
 dummy.position.z += frac*glitterVelocity[i * 3 + 2];
-	if(dummy.position.z < 0.0) {
+	if(dummy.position.z <= 0.0) {
 
-dummy.position.z = 
-			glitterVelocity[i * 3 + 0] = 
-			glitterVelocity[i * 3 + 1] = 
-			glitterVelocity[i * 3 + 2] = 0;
+dummy.position.z = glitterVelocity[i * 3 + 2] = 0;
+			glitterVelocity[i * 3 + 0] *= 0.9; 
+			glitterVelocity[i * 3 + 1] *= 0.9;
 	}
   dummy.updateMatrix();
   glitterInstancedMesh.setMatrixAt(i, dummy.matrix);
 }
 glitterInstancedMesh.instanceMatrix.needsUpdate = true;
 
-
- // cube.rotation.x += 0.01;
- // cube.rotation.y += 0.01;
-
+stats.update();
   // Render the scene
   renderer.render(scene, camera);
 lastTime = now;
