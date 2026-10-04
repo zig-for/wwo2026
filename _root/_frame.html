@@ -1,0 +1,16 @@
+{{- $name := placeholder "http.regexp.sub.1" -}}
+{{- $html := readFile (printf "/%s/index.html" $name) -}}
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{ $name }}</title>
+{{ range regexFindAll `<link[^>]*octo:octothorpes[^>]*>` $html -1 }}{{ . }}
+{{ end }}
+<script>
+fetch("https://octothorp.es/?uri=https://shitpost.ing/{{ $name }}", {mode: "no-cors"})
+  .finally(() => location.replace("https://{{ $name }}.shitpost.ing/"));
+</script>
+</head>
+<body></body>
+</html>

@@ -16,6 +16,22 @@
 
 shitpost.ing {
     root * /srv/wwo2026/_root
+
+    @git path */.git */.git/*
+    respond @git 404
+
+    @sub path_regexp sub ^/([a-z0-9-]+)(/.*)?$
+    handle @sub {
+        @isdir file {
+            root /srv/wwo2026
+            try_files /{re.sub.1}/
+        }
+        handle @isdir {
+            root * /srv/wwo2026
+            file_server
+        }
+    }
+
     file_server
 }
 
